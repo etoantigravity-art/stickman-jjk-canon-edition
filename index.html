@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JJK Stickman Fighter - Phaser Edition</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; user-select: none; }
+        #game-container { position: absolute; width: 100vw; height: 100vh; z-index: 1; pointer-events: none; } /* Let Phaser capture input but stay behind UI */
+        
+        /* Removed CSS Health bars */
+        .energy-bar { height: 100%; transition: width 0.1s; }
+        #p1-energy { background: #00ccff; width: 0%; }
+        #p2-energy { background: #00ccff; width: 0%; margin-left: auto; }
+
+        :root { --p1-color: #ffaa00; --p2-color: #ff3333; }
+        #character-selection {
+            display: flex; flex-direction: row; justify-content: space-between; align-items: center;
+            width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.9)), url('https://image.pollinations.ai/prompt/destroyed%20city%20epic%20dark%20anime%20background%204k?width=1920&height=1080&nologo=true');
+            background-size: cover; background-position: center;
+            box-sizing: border-box; padding: 20px; color: white;
+            position: absolute; top: 0; left: 0; z-index: 20; overflow: hidden;
+        }
+
+        .portrait-panel {
+            width: 30vw; height: 80vh; display: flex; flex-direction: column;
+            align-items: center; justify-content: flex-end; position: relative;
+        }
+        .portrait-image {
+            width: 100%; height: 100%; position: absolute; bottom: 0;
+            opacity: 0.8; transition: opacity 0.3s, background 0.3s;
+        }
+        .portrait-name {
+            font-size: 3rem; text-transform: uppercase; letter-spacing: 5px; z-index: 2;
+            text-shadow: 2px 2px 10px rgba(0,0,0,0.8); margin-bottom: 20px; font-weight: bold;
+        }
+        #p1-name { color: var(--p1-color); }
+        #p2-name { color: var(--p2-color); }
+
+        .center-roster { width: 40vw; display: flex; flex-direction: column; align-items: center; z-index: 10; }
+        .roster-grid {
+            display: grid; grid-template-columns: repeat(4, 90px); grid-template-rows: repeat(3, 110px); gap: 15px;
+            margin-top: 30px; background: rgba(0, 0, 0, 0.4); padding: 20px; border: 2px solid #333;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8); border-radius: 5px;
+        }
+        .char-cell {
+            background: #111; border: 2px solid #555; cursor: pointer; position: relative;
+            transition: all 0.2s; display: flex; align-items: center; justify-content: center; overflow: hidden;
+            border-radius: 5px; pointer-events: auto;
+        }
+        .char-cell:hover { border-color: white; transform: scale(1.05); z-index: 2; box-shadow: 0 0 15px rgba(255,255,255,0.5); }
+        .char-cell span { font-size: 0.8rem; text-transform: uppercase; font-weight: bold; color: #ddd; z-index: 2; pointer-events: none; text-shadow: 1px 1px 2px black; }
+        .char-cell::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(45deg, rgba(255,255,255,0.1), transparent); z-index: 1; }
+        
+        .char-cell.selected-p1 { border-color: var(--p1-color); box-shadow: 0 0 20px var(--p1-color); }
+        .char-cell.selected-p2 { border-color: var(--p2-color); box-shadow: 0 0 20px var(--p2-color); }
+
+        #start-game-btn {
+            margin-top: 40px; padding: 15px 40px; font-size: 2rem; background: linear-gradient(90deg, #aa0000, #ff0000); pointer-events: auto;
+            color: white; border: 2px solid white; cursor: pointer; text-transform: uppercase; font-family: inherit; font-weight: bold;
+            letter-spacing: 3px; transition: all 0.2s; box-shadow: 0 5px 20px rgba(255,0,0,0.5); border-radius: 5px;
+        }
+        #start-game-btn:hover { transform: scale(1.1); box-shadow: 0 10px 30px rgba(255,0,0,0.8); }
+        .title-epic { font-size: 2.5rem; color: #ccc; text-transform: uppercase; letter-spacing: 8px; text-shadow: 0 0 10px rgba(255,255,255,0.3); margin: 0;}
+
+        #game-over { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: white; background: rgba(0,0,0,0.8); padding: 50px; border: 4px solid white; display: none; z-index: 30;}
+        #winner-text { font-size: 4rem; text-transform: uppercase; margin: 0; text-shadow: 0 0 20px yellow; }
+
+        .tier-marker { position: absolute; top: -5px; width: 2px; height: 25px; background: white; z-index: 5;}
+    </style>
+</head>
+<body>
+    <div id="game-container"></div>
+    <script type="module" src="/src/main.js"></script>
+
+    <!-- Only Character Selection Modal over WebGL -->
+    <div id="character-selection">
+        <div id="p1-panel" class="portrait-panel">
+            <div id="p1-image" class="portrait-image"></div>
+            <h2 id="p1-name" class="portrait-name">SELECT P1</h2>
+        </div>
+
+        <div class="center-roster">
+            <h1 class="title-epic">CHOOSE FIGHTER</h1>
+            <div class="roster-grid" onmouseleave="window.hoverReset()">
+                <!-- Row 1 -->
+                <div class="char-cell" onmouseover="window.hoverChar('Gojo')" onclick="window.selectCharMK('Gojo', this)"><span>Gojo</span></div>
+                <div class="char-cell" onmouseover="window.hoverChar('Sukuna')" onclick="window.selectCharMK('Sukuna', this)"><span>Sukuna</span></div>
+                <div class="char-cell" onmouseover="window.hoverChar('Itadori')" onclick="window.selectCharMK('Itadori', this)"><span>Itadori</span></div>
+                <div class="char-cell" onmouseover="window.hoverChar('Hakari')" onclick="window.selectCharMK('Hakari', this)"><span>Hakari</span></div>
+                <!-- Row 2 -->
+                <div class="char-cell" onmouseover="window.hoverChar('Mahito')" onclick="window.selectCharMK('Mahito', this)"><span>Mahito</span></div>
+                <div class="char-cell" onmouseover="window.hoverChar('Yuta')" onclick="window.selectCharMK('Yuta', this)"><span>Yuta</span></div>
+                <div class="char-cell" onmouseover="window.hoverChar('Dagon')" onclick="window.selectCharMK('Dagon', this)"><span>Dagon</span></div>
+                <div class="char-cell" onmouseover="window.hoverChar('Naoya')" onclick="window.selectCharMK('Naoya', this)"><span>Naoya</span></div>
+                <!-- Row 3 -->
+                <div class="char-cell" onmouseover="window.hoverChar('Megumi')" onclick="window.selectCharMK('Megumi', this)"><span>Megumi</span></div>
+                <div class="char-cell" onmouseover="window.hoverChar('Choso')" onclick="window.selectCharMK('Choso', this)"><span>Choso</span></div>
+                <div class="char-cell" onmouseover="window.hoverChar('Kenjaku')" onclick="window.selectCharMK('Kenjaku', this)"><span>Kenjaku</span></div>
+                <div class="char-cell" onmouseover="window.hoverChar('Toji')" onclick="window.selectCharMK('Toji', this)"><span>Toji</span></div>
+            </div>
+            <button id="start-game-btn" onclick="window.startGame()" style="display:none;">FIGHT!</button>
+        </div>
+
+        <div id="p2-panel" class="portrait-panel">
+            <div id="p2-image" class="portrait-image"></div>
+            <h2 id="p2-name" class="portrait-name">SELECT P2</h2>
+        </div>
+    </div>
+
+    <!-- Epic Battle Music from Pixabay CDN -->
+    <audio id="bgmMusic" loop autoplay>
+        <source src="https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=epic-battle-music-113508.mp3" type="audio/mpeg">
+    </audio>
+
+    <script src="/src/utils/audio.js"></script>
+
+    <script type="module">
+        import { CHAR_STATS } from '/src/utils/constants.js';
+
+        let p1Char = null;
+        let p2Char = null;
+        let p1Locked = false;
+        let p2Locked = false;
+        
+        // Ensure audio plays when user interacts
+        document.body.addEventListener('click', () => { document.getElementById('bgmMusic').play().catch(()=>{}); }, {once: true});
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.char-cell').forEach(cell => {
+                let char = cell.innerText;
+                if(CHAR_STATS[char]) {
+                    cell.style.borderBottom = `4px solid ${CHAR_STATS[char].energyColor}`;
+                    cell.style.background = `radial-gradient(circle at bottom, ${CHAR_STATS[char].color}22, #111 70%)`;
+                }
+            });
+        });
+
+        window.hoverChar = function(charName) {
+            if(window.playMenuHover) window.playMenuHover();
+            let portraitUrl = `https://image.pollinations.ai/prompt/${charName}%20jujutsu%20kaisen%20epic%20anime%20fighter%20portrait?width=500&height=800&nologo=true&seed=42`;
+            let bgColor = `linear-gradient(to top, ${CHAR_STATS[charName].color}dd, transparent), url('${portraitUrl}')`;
+            
+            if (!p1Locked) {
+                document.getElementById('p1-name').innerText = charName.toUpperCase();
+                document.getElementById('p1-image').style.background = bgColor;
+                document.getElementById('p1-image').style.backgroundSize = 'cover';
+                document.getElementById('p1-image').style.backgroundPosition = 'center';
+            } else if (!p2Locked) {
+                document.getElementById('p2-name').innerText = charName.toUpperCase();
+                document.getElementById('p2-image').style.background = bgColor;
+                document.getElementById('p2-image').style.backgroundSize = 'cover';
+                document.getElementById('p2-image').style.backgroundPosition = 'center';
+            }
+        }
+
+        window.hoverReset = function() {
+            if(!p1Locked) {
+                document.getElementById('p1-name').innerText = "SELECT P1";
+                document.getElementById('p1-image').style.background = 'none';
+            }
+            if(p1Locked && !p2Locked) {
+                document.getElementById('p2-name').innerText = "SELECT P2";
+                document.getElementById('p2-image').style.background = 'none';
+            }
+        }
+
+        window.selectCharMK = function(charName, element) {
+            if(window.playMenuSelect) window.playMenuSelect();
+            if (!p1Locked) {
+                p1Char = charName;
+                p1Locked = true;
+                element.classList.add('selected-p1');
+                document.getElementById('p1-name').innerText = charName;
+                document.getElementById('p1-name').style.color = 'var(--p1-color)';
+            } else if (!p2Locked && !element.classList.contains('selected-p1')) {
+                p2Char = charName;
+                p2Locked = true;
+                element.classList.add('selected-p2');
+                document.getElementById('p2-name').innerText = charName;
+                document.getElementById('p2-name').style.color = 'var(--p2-color)';
+                document.getElementById('start-game-btn').style.display = 'block';
+            }
+        }
+
+        window.startGame = function() {
+            if (p1Char && p2Char) {
+                if(window.playGameStart) window.playGameStart();
+                document.getElementById('character-selection').style.display = 'none';
+                document.getElementById('game-container').style.pointerEvents = 'auto'; // allow canvas clicks
+                
+                // Trigger Phaser game start logic directly!
+                if(window.game) {
+                    window.game.scene.start('GameScene', { p1: p1Char, p2: p2Char });
+                }
+            }
+        }
+    </script>
+</body>
+</html>
