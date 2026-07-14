@@ -71,6 +71,12 @@ function playWaterSound() {
     playTone(250, 'triangle', 0.2, 0.3, 120);
 }
 
+window.playHitSound = playHitSound;
+window.playMenuHover = playMenuHover;
+window.playMenuSelect = playMenuSelect;
+window.playGameStart = playGameStart;
+window.playDomainSound = playDomainSound;
+window.playBeamSound = playBeamSound;
 window.playSwordSound = playSwordSound;
 window.playWaterSound = playWaterSound;
 
