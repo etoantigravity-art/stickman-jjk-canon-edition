@@ -58,3 +58,19 @@ function playBeamSound() {
     playTone(800, 'square', 0.8, 0.5, 400);
     playTone(1200, 'sawtooth', 0.6, 0.3, 100);
 }
+
+// Sharp slash sound for swords
+function playSwordSound() {
+    playTone(600, 'sawtooth', 0.15, 0.4, 1200);
+    playTone(800, 'sine', 0.1, 0.2, 400);
+}
+
+// Splash sound for water attacks
+function playWaterSound() {
+    playTone(150, 'sine', 0.25, 0.6, 80);
+    playTone(250, 'triangle', 0.2, 0.3, 120);
+}
+
+window.playSwordSound = playSwordSound;
+window.playWaterSound = playWaterSound;
+

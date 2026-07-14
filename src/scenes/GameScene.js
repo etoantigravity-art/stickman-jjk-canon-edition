@@ -44,9 +44,20 @@ export default class GameScene extends Phaser.Scene {
         this.physics.add.overlap(this.projectiles, [this.p1, this.p2], (fighter, proj) => {
             if (proj.owner === fighter || !proj.activeHit) return;
             
-            // Continuous damage / pull from blue shouldn't despawn it
+            // Continuous damage / pull from blue/purple shouldn't despawn it but should have a 500ms hit cooldown
             if (proj.projType === 'blue' || proj.projType === 'purple') {
-                fighter.takeDamage(10);
+                let now = this.time.now;
+                if (!proj.lastHitTime) proj.lastHitTime = {};
+                if (!proj.lastHitTime[fighter.playerNum] || now - proj.lastHitTime[fighter.playerNum] > 500) {
+                    proj.lastHitTime[fighter.playerNum] = now;
+                    let dmg = proj.projType === 'purple' ? 25 : 8; // Reasonable tick damage
+                    fighter.takeDamage(dmg);
+                    
+                    if (proj.projType === 'purple') {
+                        fighter.body.setVelocityX(proj.knockX * 0.4);
+                        fighter.body.setVelocityY(proj.knockY * 0.4);
+                    }
+                }
                 return;
             }
 
@@ -61,6 +72,16 @@ export default class GameScene extends Phaser.Scene {
                 fighter.takeDamage(proj.damage);
                 fighter.body.setVelocityX(proj.knockX);
                 fighter.body.setVelocityY(proj.knockY);
+                
+                // Status effects for specific attacks
+                if (proj.projType === 'cursed_speech') {
+                    fighter.isStunned = true;
+                    this.time.delayedCall(800, () => { fighter.isStunned = false; });
+                }
+                if (proj.projType === 'fps_dash') {
+                    fighter.isStunned = true;
+                    this.time.delayedCall(1000, () => { fighter.isStunned = false; });
+                }
                 
                 let flash = this.add.circle(fighter.x, fighter.y, 40, proj.projType==='red'?0xff0000:0xffffff, 0.8);
                 this.tweens.add({ targets: flash, scale: 2, alpha: 0, duration: 200, onComplete: () => flash.destroy() });
@@ -174,14 +195,14 @@ export default class GameScene extends Phaser.Scene {
                     this.domainGraphics.fillCircle(cx + Math.cos(rot)*d, cy + Math.sin(rot)*d, Math.random()*2+1);
                 });
             }
-            // Center abstract eye
+            // Center eye
             this.domainGraphics.fillStyle(0x000000, 1);
             this.domainGraphics.fillCircle(cx, cy, 50);
             this.domainGraphics.lineStyle(6, 0x00aaff, 0.8);
             this.domainGraphics.strokeCircle(cx, cy, 55 + Math.sin(this.domainTime/200)*5);
         } else if (this.domainType === 'shrine') {
             // Constant dismantle slashes on the screen
-            if (Math.random() < 0.25 && this.domainOwner && this.domainOwner.enemy) { // 25% chance per frame
+            if (Math.random() < 0.25 && this.domainOwner && this.domainOwner.enemy) {
                 let enemy = this.domainOwner.enemy;
                 let sx = enemy.x + (Math.random()-0.5)*150;
                 let sy = enemy.y + (Math.random()-0.5)*150;
@@ -194,8 +215,80 @@ export default class GameScene extends Phaser.Scene {
                 slash.strokePath();
                 
                 this.tweens.add({ targets: slash, alpha: 0, duration: 150, onComplete: () => slash.destroy() });
+                enemy.takeDamage(1.5);
+            }
+        } else if (this.domainType === 'love' && this.domainGraphics) {
+            this.domainGraphics.clear();
+            // Deep purple space-sky
+            this.domainGraphics.fillStyle(0x180026, 0.8);
+            this.domainGraphics.fillRect(0, 0, this.scale.width, this.scale.height);
+            
+            // Draw and animate floating katanas in the domain sky
+            this.domainGraphics.lineStyle(2.5, 0xddddff, 0.9);
+            if (this.domainKatanas) {
+                this.domainTime += delta;
+                this.domainKatanas.forEach(katana => {
+                    let angle = katana.rotation + Math.sin((this.domainTime/1000) * katana.swingSpeed + katana.phase) * 0.2;
+                    let len = 35;
+                    
+                    let endX = katana.x + Math.cos(angle) * len;
+                    let endY = katana.y + Math.sin(angle) * len;
+                    
+                    this.domainGraphics.beginPath();
+                    this.domainGraphics.moveTo(katana.x, katana.y);
+                    this.domainGraphics.lineTo(endX, endY);
+                    this.domainGraphics.strokePath();
+                    
+                    // Draw gold guard
+                    let gStartX = katana.x + Math.cos(angle + Math.PI/2) * 6;
+                    let gStartY = katana.y + Math.sin(angle + Math.PI/2) * 6;
+                    let gEndX = katana.x - Math.cos(angle + Math.PI/2) * 6;
+                    let gEndY = katana.y - Math.sin(angle + Math.PI/2) * 6;
+                    this.domainGraphics.lineStyle(3, 0xffd700, 0.95);
+                    this.domainGraphics.beginPath();
+                    this.domainGraphics.moveTo(gStartX, gStartY);
+                    this.domainGraphics.lineTo(gEndX, gEndY);
+                    this.domainGraphics.strokePath();
+                    
+                    this.domainGraphics.lineStyle(2.5, 0xddddff, 0.9);
+                });
+            }
+        } else if (this.domainType === 'beach' && this.domainGraphics) {
+            this.domainGraphics.clear();
+            this.domainTime += delta;
+            
+            // Beautiful tropical skies & water color layering
+            this.domainGraphics.fillStyle(0x00ccff, 0.2); 
+            this.domainGraphics.fillRect(0, 0, this.scale.width, this.scale.height);
+            
+            // Moving beach waves on the floor (sand + foam)
+            let fY = PHYSICS.FLOOR_Y;
+            this.domainGraphics.fillStyle(0xddcc99, 1); // Sand color
+            this.domainGraphics.fillRect(0, fY, this.scale.width, 100);
+            
+            // Water waves
+            this.domainGraphics.fillStyle(0x0066cc, 0.45);
+            this.domainGraphics.beginPath();
+            this.domainGraphics.moveTo(0, fY);
+            for (let x = 0; x <= this.scale.width; x += 30) {
+                let y = fY - 10 + Math.sin((x + this.domainTime) / 70) * 10;
+                this.domainGraphics.lineTo(x, y);
+            }
+            this.domainGraphics.lineTo(this.scale.width, fY + 100);
+            this.domainGraphics.lineTo(0, fY + 100);
+            this.domainGraphics.closePath();
+            this.domainGraphics.fill();
+            
+            // Spawning fish Shikigami swarms to attack the enemy! (8% chance per frame)
+            if (Math.random() < 0.08 && this.domainOwner && this.domainOwner.enemy) {
+                let enemy = this.domainOwner.enemy;
+                let dir = Math.random() < 0.5 ? 1 : -1;
+                let startX = dir === 1 ? -60 : this.scale.width + 60;
+                let startY = enemy.y - 100 + Math.random() * 200;
                 
-                enemy.takeDamage(1.5); // Micro-damage every cut (sure-hit effect)
+                // Spawn a beautiful fish projectile!
+                let fish = new Projectile(this, startX, startY, 'detailed_fish', dir, this.domainOwner);
+                fish.damage = 6; // Balance tick damage
             }
         }
     }
@@ -243,6 +336,21 @@ export default class GameScene extends Phaser.Scene {
             for(let i=0; i<60; i++) {
                 this.domainGraphics.fillCircle(Math.random()*this.scale.width, fY - 40 + Math.random()*50, 4 + Math.random()*6);
             }
+        } else if (type === 'love') {
+            // Yuta's domain of floating katanas in lilac sky
+            this.domainKatanas = [];
+            for (let i = 0; i < 20; i++) {
+                this.domainKatanas.push({
+                    x: Math.random() * this.scale.width,
+                    y: 100 + Math.random() * 400,
+                    rotation: Math.random() * Math.PI,
+                    swingSpeed: 0.6 + Math.random() * 1.2,
+                    phase: Math.random() * 10
+                });
+            }
+        } else if (type === 'beach') {
+            // Dagon's tropical island/beach domain
+            this.domainWaveOffset = 0;
         }
         
         // Deactivate after 10s
