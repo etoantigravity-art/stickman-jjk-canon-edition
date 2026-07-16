@@ -24,11 +24,11 @@ export default class BootScene extends Phaser.Scene {
         graphics.clear();
 
         // 100% Canon Domain Assets
-        this.load.image('void_bg', '/assets/domains/void.png');
-        this.load.image('shrine_bg', '/assets/domains/shrine.png');
+        this.load.image('void_bg', 'assets/domains/void.png');
+        this.load.image('shrine_bg', 'assets/domains/shrine.png');
         
         // Custom VFX
-        this.load.image('slash_vfx', '/assets/vfx/slash.png');
+        this.load.image('slash_vfx', 'assets/vfx/slash.png');
     }
 
     create() {
